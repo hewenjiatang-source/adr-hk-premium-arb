@@ -169,7 +169,11 @@ def backtest(
     )
     # Convert entry-notional P&L to returns on current equity so trades compound.
     cum_before = daily.groupby("trade_id")["pnl"].cumsum() - daily["pnl"]
-    daily["ret"] = np.where(daily["trade_id"].notna(), daily["pnl"] / (1.0 + cum_before.fillna(0.0)), 0.0)
+    base = (1.0 + cum_before.fillna(0.0)).clip(lower=1e-9)
+    daily["ret"] = np.where(daily["trade_id"].notna(), daily["pnl"] / base, 0.0)
+    # A day can at most wipe out the account; without this floor a runaway
+    # losing trade (e.g. a mis-specified ADR ratio) makes equity negative.
+    daily["ret"] = daily["ret"].clip(lower=-1.0)
     daily["equity"] = (1.0 + daily["ret"]).cumprod()
 
     trades = _trade_table(daily, exiting)

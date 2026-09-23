@@ -64,11 +64,41 @@ With these defaults a round trip costs about **34 bp**. That is a large hurdle f
 
 The gap between the two is the headline result for each pair.
 
+## Results: 26 pairs, daily closes, Jan 2019 → 2026
+
+<p align="center">
+  <img src="docs/universe_is_vs_oos.png" width="95%" alt="In-sample vs walk-forward Sharpe for 26 HK–ADR pairs">
+</p>
+
+| | In-sample optimum | Walk-forward (out of sample) |
+|---|---|---|
+| Median Sharpe (after costs) | 0.21 | **0.02** |
+| Pairs with Sharpe > 0 | 21 / 26 | 16 / 26 |
+| Pairs with Sharpe > 0.3 | 8 / 26 | 4 / 26 |
+| Median annual return | — | −1.4% |
+| Median max drawdown | — | −23% |
+
+**What this says**
+
+- **Once session timing and costs are modelled, there is no robust edge in daily closes.** The median pair earns roughly nothing out of sample, and the best walk-forward Sharpe is 0.41 (XPeng, on only 13 trades).
+- **The grid search overfits.** 23 of 26 pairs do worse out of sample than their in-sample optimum; the median pair loses 0.17 of Sharpe. Aluminum Corp of China drops from 1.13 to 0.36, and Tencent and Bilibili flip from positive to clearly negative.
+- **In-sample rank still carries some information** (rank correlation 0.69 between in-sample and out-of-sample Sharpe), so the pairs that look better are somewhat more likely to hold up, just far less well than the in-sample numbers suggest.
+- An earlier version of this research, which compared same-day HK and US closes and optimised on the full sample, showed far higher Sharpe ratios. Most of that gap is the look-ahead and overfitting this repository is designed to remove.
+
+Full per-pair numbers are in [`results/universe_summary.csv`](results/universe_summary.csv).
+
+**Caveats on these numbers**
+
+- **Survivorship:** 8 of the 34 pairs could not be tested because their ADRs are delisted or renamed on Yahoo Finance (LFC, SNP, PTR, SHI, CEA, ZNH, HNP and BGNE), so the tested universe leans toward names that are still listed.
+- **ADR ratios:** `pairs.csv` ratios are as of early 2022. `run_universe.py` now reports each pair's median premium and flags `CHECK RATIO` when it is above 10%, which usually means a ratio change during the sample.
+
+The synthetic-data figures below illustrate the method on a pair with a known, mean-reverting premium.
+
 <p align="center">
   <img src="docs/synthetic_heatmap_sharpe.png" width="48%" alt="Sharpe heatmap over entry/exit thresholds (synthetic demo data)">
   <img src="docs/synthetic_equity.png" width="48%" alt="In-sample vs walk-forward equity (synthetic demo data)">
 </p>
-<p align="center"><em>Figures generated from the built-in <strong>synthetic</strong> pair, not market data. Run the scripts below to generate real ones.</em></p>
+<p align="center"><em>Synthetic data, not market data.</em></p>
 
 ## Quick start
 
@@ -81,8 +111,9 @@ python scripts/run_pair.py --synthetic
 # one real pair (Yahoo Finance data)
 python scripts/run_pair.py --hk 9988.HK --adr BABA --ratio 0.125 --start 2019-01-01
 
-# the whole universe in config/pairs.csv
+# the whole universe in config/pairs.csv, then the summary chart
 python scripts/run_universe.py --start 2019-01-01
+python scripts/plot_universe.py
 
 # tests
 pytest -q
@@ -102,7 +133,8 @@ src/adr_hk_arb/
   metrics.py    Sharpe, drawdown, win rates, trade statistics
   optimize.py   grid search, in-sample baseline, walk-forward
   plots.py      heatmaps, premium bands, equity curves
-scripts/        run_pair.py, run_universe.py
+scripts/        run_pair.py, run_universe.py, plot_universe.py
+results/        universe_summary.csv (latest universe run)
 config/         pairs.csv (HK ticker, ADR ticker, ADRs per HK share)
 tests/          correctness tests (alignment, look-ahead, costs, hedge P&L)
 ```
@@ -113,7 +145,6 @@ tests/          correctness tests (alignment, look-ahead, costs, hedge P&L)
 - **Dividends and corporate actions.** Closes are split-adjusted but not dividend-adjusted, so ex-dividend dates on either leg show up as small premium jumps. ADR ratios and tickers change over time; verify `pairs.csv` (ratios listed are as of early 2022) before a run.
 - **Conversion is not modelled.** The trade relies on convergence, not on creating or cancelling ADRs through the depositary, which is where the real arbitrage bound comes from, with its own fees and settlement delays.
 - **Borrow availability.** A constant borrow rate is assumed. In practice some ADRs become hard to borrow exactly when their premium is largest.
-- **Delisted pairs.** Several ADRs in the list, such as SNP, PTR, LFC, and the airline ADRs, delisted in 2022–2023, so Yahoo coverage for them is partial.
 - **Survivorship and capacity.** No market-impact model; positions are assumed small relative to volume.
 
 ## Background

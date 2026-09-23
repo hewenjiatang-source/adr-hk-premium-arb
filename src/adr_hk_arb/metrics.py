@@ -26,7 +26,10 @@ def annual_return(equity: pd.Series) -> float:
     n = len(equity)
     if n < 2:
         return float("nan")
-    return float(equity.iloc[-1] ** (TRADING_DAYS / n) - 1.0)
+    final = float(equity.iloc[-1])
+    if final <= 0:  # the account was wiped out; the annualised figure is -100%
+        return -1.0
+    return float(final ** (TRADING_DAYS / n) - 1.0)
 
 
 def period_win_rate(daily: pd.DataFrame, freq: str) -> float:

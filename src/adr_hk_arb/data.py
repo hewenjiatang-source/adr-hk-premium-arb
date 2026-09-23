@@ -90,6 +90,9 @@ def align_sessions(hk: pd.Series, adr: pd.Series, fx: pd.Series) -> pd.DataFrame
     hk = hk.sort_index().dropna()
     adr = adr.sort_index().dropna()
     fx = fx.sort_index().dropna()
+    for name, s in (("hk", hk), ("adr", adr), ("fx", fx)):
+        if s.empty:
+            raise ValueError(f"no {name} prices (ticker delisted or renamed?)")
 
     panel = pd.DataFrame({"hk": hk})
     panel.index.name = "date"
@@ -116,8 +119,9 @@ def align_sessions(hk: pd.Series, adr: pd.Series, fx: pd.Series) -> pd.DataFrame
     panel["adr_exec"] = exe["adr_exec"]
     panel["exec_date"] = exe["src_date"]
     # FX on the day the ADR leg fills (last fix on or before that date).
+    exec_dates = exe[["src_date"]].rename(columns={"src_date": "d"}).reset_index().dropna(subset=["d"])
     fx_exec = pd.merge_asof(
-        exe[["src_date"]].rename(columns={"src_date": "d"}).reset_index().sort_values("d"),
+        exec_dates.sort_values("d"),
         fx.rename("fx_exec").rename_axis("d").reset_index(),
         on="d",
         direction="backward",

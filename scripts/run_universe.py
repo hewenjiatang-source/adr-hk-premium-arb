@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from adr_hk_arb import CostModel, align_sessions, fetch_yahoo, in_sample_optimum, summarize, walk_forward  # noqa: E402
+from adr_hk_arb import CostModel, align_sessions, compute_premium, fetch_yahoo, in_sample_optimum, summarize, walk_forward  # noqa: E402
 
 
 def main() -> None:
@@ -42,8 +42,14 @@ def main() -> None:
             continue
         best, _ = in_sample_optimum(panel, p.adr_per_share, costs)
         wf = summarize(walk_forward(panel, p.adr_per_share, costs=costs).oos)
+        median_premium = float(compute_premium(panel, p.adr_per_share).median())
         rows.append({
             "pair": tag, "name": p.name, "days": len(panel),
+            # Sanity check on the ADR ratio: a correct ratio gives a median
+            # premium near 0. |median| > 10% usually means the ratio in
+            # pairs.csv is wrong or changed during the sample.
+            "median_premium": median_premium,
+            "ratio_check": "ok" if abs(median_premium) <= 0.10 else "CHECK RATIO",
             "is_entry_k": None if best is None else best["entry_k"],
             "is_exit_k": None if best is None else best["exit_k"],
             "is_sharpe": None if best is None else best["sharpe"],
@@ -53,15 +59,20 @@ def main() -> None:
         })
         print(f"{tag:<18} IS Sharpe {rows[-1]['is_sharpe'] or float('nan'):5.2f} -> OOS {wf['sharpe']:5.2f}")
 
+    if skipped:
+        print("skipped:")
+    for tag, why in skipped:
+        print(f"  {tag}: {why}")
+
+    if not rows:
+        print("\nNo pairs produced results — see skip reasons above.")
+        return
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     table = pd.DataFrame(rows).sort_values("oos_sharpe", ascending=False)
     table.to_csv(out / "universe_summary.csv", index=False)
     print(f"\n{len(rows)} pairs -> {out / 'universe_summary.csv'}")
-    if skipped:
-        print("skipped:")
-        for tag, why in skipped:
-            print(f"  {tag}: {why}")
 
 
 if __name__ == "__main__":

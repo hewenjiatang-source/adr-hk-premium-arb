@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
-results/
+results/*
+!results/universe_summary.csv
 data/
 .venv/
