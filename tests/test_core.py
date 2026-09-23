@@ -98,3 +98,17 @@ def test_walk_forward_uses_only_past_statistics(panel):
         assert f.premium_mean == pytest.approx(compute_premium(train, 0.5).mean())
         assert f.train_end < f.test_start
     assert wf.oos.daily.index.is_monotonic_increasing
+
+
+def test_empty_series_gives_clear_error():
+    s = make_synthetic_pair(n_days=20)
+    with pytest.raises(ValueError):
+        align_sessions(s["hk"], s["adr"].iloc[:0], s["fx"])
+
+
+def test_equity_never_negative_with_wrong_ratio(panel):
+    """A badly wrong ADR ratio creates huge hedge P&L; equity must stay >= 0."""
+    prem = compute_premium(panel, 5.0)
+    rule = ThresholdRule(prem.mean(), prem.std(), 0.2, -0.2)
+    res = backtest(panel, 5.0, rule)
+    assert (res.daily["equity"] >= 0).all()
