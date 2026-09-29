@@ -71,7 +71,7 @@ With these defaults a round trip costs about **34 bp**. That is a large hurdle f
 
 The gap between the two is the headline result for each pair.
 
-## Results: 26 pairs, daily closes, Jan 2019 → 2026
+## Results: 26 pairs, daily closes, Jan 2019 → Aug 2026
 
 <p align="center">
   <img src="docs/universe_is_vs_oos.png" width="95%" alt="In-sample vs walk-forward Sharpe for 26 HK–ADR pairs">
@@ -80,24 +80,24 @@ The gap between the two is the headline result for each pair.
 | | In-sample optimum | Walk-forward (out of sample) |
 |---|---|---|
 | Median Sharpe (after costs) | 0.21 | **0.02** |
-| Pairs with Sharpe > 0 | 21 / 26 | 16 / 26 |
+| Pairs with Sharpe > 0 | 21 / 26 | 14 / 26 |
 | Pairs with Sharpe > 0.3 | 8 / 26 | 4 / 26 |
-| Median annual return | — | −1.4% |
+| Median annual return | — | −1.6% |
 | Median max drawdown | — | −23% |
 
 **What this says**
 
-- **Once session timing and costs are modelled, there is no robust edge in daily closes.** The median pair earns roughly nothing out of sample, and the best walk-forward Sharpe is 0.41 (XPeng, on only 13 trades).
-- **The grid search overfits.** 23 of 26 pairs do worse out of sample than their in-sample optimum; the median pair loses 0.17 of Sharpe. Aluminum Corp of China drops from 1.13 to 0.36, and Tencent and Bilibili flip from positive to clearly negative.
+- **Once session timing and costs are modelled, there is no robust edge in daily closes.** The median pair earns roughly nothing out of sample, and the best walk-forward Sharpe is 0.44 (XPeng, on only 12 trades).
+- **The grid search overfits.** 23 of 26 pairs do worse out of sample than their in-sample optimum; the median pair loses 0.17 of Sharpe. GDS drops from 0.56 to 0.34, and Tencent and Bilibili flip from positive to clearly negative.
 - **In-sample rank still carries some information** (rank correlation 0.69 between in-sample and out-of-sample Sharpe), so the pairs that look better are somewhat more likely to hold up, just far less well than the in-sample numbers suggest.
 - An earlier version of this research, which compared same-day HK and US closes and optimised on the full sample, showed far higher Sharpe ratios. Most of that gap is the look-ahead and overfitting this repository is designed to remove.
 
-Full per-pair numbers are in [`results/universe_summary.csv`](results/universe_summary.csv).
+Full per-pair numbers are in [`results/universe_summary.csv`](results/universe_summary.csv), produced by `python scripts/run_universe.py --start 2019-01-01 --end 2026-09-01`.
 
 **Caveats on these numbers**
 
 - **Survivorship:** 8 of the 34 pairs could not be tested because their ADRs are delisted or renamed on Yahoo Finance (LFC, SNP, PTR, SHI, CEA, ZNH, HNP and BGNE), so the tested universe leans toward names that are still listed.
-- **ADR ratios:** `pairs.csv` ratios are as of early 2022. `run_universe.py` now reports each pair's median premium and flags `CHECK RATIO` when it is above 10%, which usually means a ratio change during the sample.
+- **ADR ratios:** `pairs.csv` ratios are as of early 2022. `run_universe.py` now reports each pair's median premium and flags `CHECK RATIO` when it is above 10%, which usually means a ratio change during the sample. In the current run this flags Aluminum Corp of China (its in-sample Sharpe of 3.49 is the outlier in the chart and should not be trusted), New Oriental and BYD.
 
 The synthetic-data figures below illustrate the method on a pair with a known, mean-reverting premium.
 
