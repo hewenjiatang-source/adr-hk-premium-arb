@@ -1,4 +1,4 @@
-# HK–ADR Premium Arbitrage: a Look-Ahead-Free Backtest
+# HK–ADR Premium Arbitrage: a Session-Aware Backtest
 
 Do US ADRs of Hong Kong–listed companies trade at a premium or discount to their Hong Kong shares that reliably mean-reverts, and does anything survive **realistic session timing, trading costs, financing, and out-of-sample testing**?
 
@@ -27,15 +27,22 @@ HKT   09:30 ─── HK session ─── 16:00          21:30 ─── US ses
                 (HK close vs. last US close)    (next US session)
 ```
 
-A naive backtest puts the HK close and the US close for the *same calendar date* side by side and assumes both legs trade at those prices. That uses information that doesn't exist at decision time: the US close on date *d* happens hours after the HK close on *d*. This repo builds every row on the **Hong Kong trading date** and uses only data that is actually available (`src/adr_hk_arb/data.py`):
+A naive backtest puts the HK close and the US close for the *same calendar date* side by side and assumes both legs trade at those prices. That uses information that doesn't exist at decision time: the US close on date *d* happens hours after the HK close on *d*. This repo builds every row on the **Hong Kong trading date**, computes the signal only from data available at the HK close, and prices each leg at the session in which it could trade (`src/adr_hk_arb/data.py`):
 
 | column | meaning | known when |
 |---|---|---|
 | `hk` | HK close on date *d* | 16:00 HKT, *d* |
 | `adr_sig`, `fx_sig` | last US close / FX strictly **before** *d* | 16:00 HKT, *d* |
-| `adr_exec`, `fx_exec` | first US close **on or after** *d* | when the ADR leg fills |
+| `adr_exec`, `fx_exec` | first US close **on or after** *d* | after the next US close (the ADR fill) |
 
-The signal uses only `hk`, `adr_sig`, and `fx_sig`. The P&L uses `adr_exec`, so the **overnight legging risk** (the ADR moving between the HK buy and the US sell) is part of the results instead of being assumed away. A test in `tests/test_core.py` asserts this property.
+The signal uses only `hk`, `adr_sig`, and `fx_sig`; a test in `tests/test_core.py` asserts this. The P&L prices the ADR leg at `adr_exec`, so the ADR's move between the HK close and the next US close is in the results.
+
+**What this is not.** It is a close-to-close approximation, not an asynchronous execution simulation:
+
+- The HK leg is assumed to fill at the same HK close the signal is computed from. Knowing the final close does not by itself mean you can still trade at it; the realistic version is a signal from a pre-close price and a fill in the HK closing auction.
+- The ADR order placed after the HK close, and the one-legged position held until it fills, are not tracked as separate state. Both legs are booked on the HK date row.
+
+**Walk-forward and the US calendar.** Several HK dates can share one ADR fill date, for example when the US is closed on an HK trading day. A training row whose ADR fill falls on or after the first test day has a P&L that is not yet known when the test window starts, so `walk_forward` drops those rows from the training window (reported as `train_rows_dropped` per fold). A test covers the US-holiday case.
 
 ## Strategy
 
@@ -127,7 +134,7 @@ You can also use vendor data (Bloomberg, Refinitiv) through `--csv path.csv` wit
 
 ```
 src/adr_hk_arb/
-  data.py       download + HK/US session alignment (no look-ahead)
+  data.py       download + HK/US session alignment
   costs.py      fee, slippage and financing model
   strategy.py   premium, threshold state machine, static-hedge backtest
   metrics.py    Sharpe, drawdown, win rates, trade statistics
@@ -136,11 +143,12 @@ src/adr_hk_arb/
 scripts/        run_pair.py, run_universe.py, plot_universe.py
 results/        universe_summary.csv (latest universe run)
 config/         pairs.csv (HK ticker, ADR ticker, ADRs per HK share)
-tests/          correctness tests (alignment, look-ahead, costs, hedge P&L)
+tests/          correctness tests (alignment, walk-forward cutoff, costs, hedge P&L, drawdown)
 ```
 
 ## Known limitations
 
+- **Execution timing is approximated.** See "What this is not" above: same-close HK fills and no separate state for the pending ADR order or the overnight one-legged position.
 - **Daily closes only.** Real execution would use the HK closing auction and a US order around the open or close. Intraday data would let you measure the premium at genuinely synchronous times, for example through HK-listed futures or the US pre-market.
 - **Dividends and corporate actions.** Closes are split-adjusted but not dividend-adjusted, so ex-dividend dates on either leg show up as small premium jumps. ADR ratios and tickers change over time; verify `pairs.csv` (ratios listed are as of early 2022) before a run.
 - **Conversion is not modelled.** The trade relies on convergence, not on creating or cancelling ADRs through the depositary, which is where the real arbitrage bound comes from, with its own fees and settlement delays.
@@ -149,7 +157,7 @@ tests/          correctness tests (alignment, look-ahead, costs, hedge P&L)
 
 ## Background
 
-This repository is a clean re-implementation of an earlier research notebook on the same idea. It is rebuilt from scratch using only public data and published fee schedules. Compared with that first version, the main changes are session-aware alignment, walk-forward parameter selection in place of full-sample optimization, explicit overnight legging risk, a configurable cost model, and unit tests.
+This repository is a clean re-implementation of an earlier research notebook on the same idea. It is rebuilt from scratch using only public data and published fee schedules. Compared with that first version, the main changes are session-aware alignment, walk-forward parameter selection in place of full-sample optimization, an ADR leg priced at the next US close instead of the same-date close, a configurable cost model, and unit tests.
 
 ## License
 

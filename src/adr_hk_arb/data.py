@@ -13,9 +13,20 @@ that is actually knowable (or tradable) at that point in time:
                                                            when the ADR leg fills)
     fx_exec   USD/HKD on the same date as adr_exec
 
-The signal only uses `hk`, `adr_sig` and `fx_sig`. The P&L uses `hk` and
-`adr_exec`, so the overnight legging risk between buying HK and selling the ADR
-is included in the results instead of being assumed away.
+The signal only uses `hk`, `adr_sig` and `fx_sig`. The P&L prices the HK leg at
+`hk` and the ADR leg at `adr_exec`, so the two legs are priced at the sessions
+in which they could actually trade, and the ADR's overnight move is in the P&L.
+
+This is a close-to-close approximation, not an execution simulation:
+  * the HK leg is assumed to fill at the same HK close that the signal uses
+    (in practice: a signal from a pre-close price, filled in the closing
+    auction);
+  * the pending ADR order and the one-legged position it leaves overnight are
+    not tracked as separate state; both legs are booked on the HK date row.
+
+Several HK dates can map to the same `exec_date` (e.g. when the US market is
+closed on an HK trading day). `walk_forward` uses `exec_date` to keep
+training rows whose ADR fill is not yet known out of parameter selection.
 """
 from __future__ import annotations
 
@@ -82,7 +93,7 @@ def load_csv(path: str | Path) -> dict[str, pd.Series]:
 
 
 def align_sessions(hk: pd.Series, adr: pd.Series, fx: pd.Series) -> pd.DataFrame:
-    """Align HK, US and FX series onto HK trading dates without look-ahead.
+    """Align HK, US and FX series onto HK trading dates (signal columns use only prior sessions).
 
     See module docstring for column definitions. Rows at the edges where any
     column is unavailable are dropped.

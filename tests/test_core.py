@@ -14,6 +14,7 @@ from adr_hk_arb import (  # noqa: E402
     CostModel, ThresholdRule, align_sessions, backtest, compute_premium,
     generate_positions, make_synthetic_pair, walk_forward,
 )
+from adr_hk_arb.metrics import max_drawdown  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +113,58 @@ def test_equity_never_negative_with_wrong_ratio(panel):
     rule = ThresholdRule(prem.mean(), prem.std(), 0.2, -0.2)
     res = backtest(panel, 5.0, rule)
     assert (res.daily["equity"] >= 0).all()
+
+
+def test_walk_forward_training_excludes_unsettled_adr_fills():
+    """US closed on the last training day: its ADR fill lands on the first test day.
+
+    That row's P&L is not known when the test window starts, so it must not be
+    used to choose parameters. Scrambling the US close on the test start date
+    must leave the fold-0 parameters unchanged.
+    """
+    train_days, test_days = 300, 100
+    s = make_synthetic_pair(n_days=800, adr_per_share=0.5, seed=3)
+    dates = align_sessions(**s).index
+    us_holiday, test_start = dates[train_days - 1], dates[train_days]
+    adr = s["adr"].drop(us_holiday)
+    panel = align_sessions(s["hk"], adr, s["fx"])
+    assert panel.loc[us_holiday, "exec_date"] == test_start  # HK open, US closed
+
+    wf = walk_forward(panel, 0.5, train_days=train_days, test_days=test_days)
+    f0 = wf.folds.iloc[0]
+    assert f0["test_start"] == test_start.date()
+    assert f0["train_end"] == dates[train_days - 2].date()
+    assert f0["train_rows_dropped"] == 1
+
+    shocked = adr.copy()
+    shocked.loc[test_start] *= 1.5
+    wf2 = walk_forward(align_sessions(s["hk"], shocked, s["fx"]), 0.5,
+                       train_days=train_days, test_days=test_days)
+    cols = ["premium_mean", "premium_std", "entry_k", "exit_k", "train_sharpe"]
+    pd.testing.assert_series_equal(wf.folds.iloc[0][cols], wf2.folds.iloc[0][cols])
+
+
+def test_walk_forward_training_fills_precede_test_start(panel):
+    wf = walk_forward(panel, 0.5, train_days=300, test_days=100)
+    for f in wf.folds.itertuples():
+        train = panel.loc[str(f.train_start):str(f.train_end)]
+        assert (train["exec_date"] < pd.Timestamp(f.test_start)).all()
+
+
+def test_max_drawdown_counts_initial_capital():
+    idx = pd.bdate_range("2024-01-01", periods=2)
+    assert max_drawdown(pd.Series([0.90, 0.95], index=idx)) == pytest.approx(-0.10)
+    assert max_drawdown(pd.Series([1.10, 0.99], index=idx)) == pytest.approx(-0.10)
+    assert max_drawdown(pd.Series([1.00, 1.05], index=idx)) == 0.0
+
+
+def test_first_day_cost_shows_in_drawdown():
+    """Entering on the first row pays costs immediately; that loss is a drawdown."""
+    idx = pd.bdate_range("2024-01-01", periods=3)
+    panel = pd.DataFrame({"hk": [100.0] * 3, "adr_sig": [30.0] * 3, "fx_sig": [7.8] * 3,
+                          "adr_exec": [30.0] * 3, "fx_exec": [7.8] * 3, "exec_date": idx}, index=idx)
+    rule = ThresholdRule(mean=0.0, std=0.1, entry_k=0.5, exit_k=-10.0)  # premium +17% -> enter day 1
+    res = backtest(panel, 0.5, rule, CostModel())
+    assert res.daily["position"].iloc[0] == 1
+    assert res.daily["equity"].iloc[0] == pytest.approx(1 - CostModel().per_side)
+    assert max_drawdown(res.daily["equity"]) <= -CostModel().per_side
