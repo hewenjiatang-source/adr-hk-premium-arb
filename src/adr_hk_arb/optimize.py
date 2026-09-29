@@ -87,7 +87,14 @@ def walk_forward(
     min_trades: int = 5,
     **grid_kwargs,
 ) -> WalkForwardResult:
-    """Rolling train/test: fit on `train_days` rows, trade the next `test_days` rows."""
+    """Rolling train/test: fit on `train_days` rows, trade the next `test_days` rows.
+
+    Parameters for a test window are chosen at the HK close of its first day.
+    A training row's P&L depends on its ADR fill (`exec_date`), which can fall
+    on or after that day, e.g. when the US market is closed on the last
+    training date. Such rows are dropped from the training window, so the
+    fitted parameters only use prices that were known when the test starts.
+    """
     n = len(panel)
     if n < train_days + test_days:
         raise ValueError(f"need at least {train_days + test_days} rows, got {n}")
@@ -97,6 +104,8 @@ def walk_forward(
     while start + train_days < n:
         train = panel.iloc[start : start + train_days]
         test = panel.iloc[start + train_days : start + train_days + test_days]
+        n_unsettled = int((train["exec_date"] >= test.index[0]).sum())
+        train = train[train["exec_date"] < test.index[0]]
         prem = compute_premium(train, adr_per_share)
         mean, std = float(prem.mean()), float(prem.std())
         grid = grid_search(train, adr_per_share, mean, std, costs=costs, **grid_kwargs)
@@ -124,6 +133,7 @@ def walk_forward(
             "fold": fold,
             "train_start": train.index[0].date(),
             "train_end": train.index[-1].date(),
+            "train_rows_dropped": n_unsettled,  # ADR fill not yet known at test start
             "test_start": test.index[0].date(),
             "test_end": test.index[-1].date(),
             "premium_mean": mean,

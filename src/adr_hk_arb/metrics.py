@@ -18,7 +18,10 @@ def sharpe_ratio(returns: pd.Series) -> float:
 
 
 def max_drawdown(equity: pd.Series) -> float:
-    peak = equity.cummax()
+    """Worst peak-to-trough fall, counting the starting capital of 1 as the first peak."""
+    if equity.empty:
+        return float("nan")
+    peak = equity.cummax().clip(lower=1.0)
     return float((equity / peak - 1.0).min())
 
 

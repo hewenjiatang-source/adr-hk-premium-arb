@@ -15,6 +15,11 @@ unavailable.
 
 The hedge is static within a trade (share counts fixed at entry), and P&L is
 measured against the notional of one leg. Equity compounds across trades.
+
+Execution timing is approximated, not simulated: the HK leg fills at the same
+HK close the signal is computed from, the ADR leg at the next US close, and
+both are booked on the HK date row. Pending ADR orders and the overnight
+one-legged position are not modelled as separate state.
 """
 from __future__ import annotations
 
@@ -72,8 +77,8 @@ class ThresholdRule:
 def generate_positions(premium: pd.Series, rule: ThresholdRule) -> pd.Series:
     """Sequential state machine (hysteresis between entry and exit bands).
 
-    The position decided at row t is filled at row t's prices (HK close and the
-    following US close) and earns P&L from row t+1 onwards. A position is never
+    The position decided at row t is assumed filled at row t's prices (the same
+    HK close and the following US close) and earns P&L from row t+1 onwards. A position is never
     flipped from +1 to -1 in a single row: it exits first and may re-enter on
     a later row.
     """
