@@ -99,6 +99,20 @@ Full per-pair numbers are in [`results/universe_summary.csv`](results/universe_s
 - **Survivorship:** 8 of the 34 pairs could not be tested because their ADRs are delisted or renamed on Yahoo Finance (LFC, SNP, PTR, SHI, CEA, ZNH, HNP and BGNE), so the tested universe leans toward names that are still listed.
 - **ADR ratios:** `pairs.csv` ratios are as of early 2022. `run_universe.py` now reports each pair's median premium and flags `CHECK RATIO` when it is above 10%, which usually means a ratio change during the sample. In the current run this flags Aluminum Corp of China (its in-sample Sharpe of 3.49 is the outlier in the chart and should not be trusted), New Oriental and BYD.
 
+**Sensitivity: excluding the three ratio-flagged pairs.** Their premiums are probably mis-scaled, so their results may not mean anything. Dropping them leaves 23 pairs and makes the headline slightly *weaker*, not stronger. All three had positive walk-forward Sharpe, so the conclusion that there is no robust edge does not depend on them.
+
+| | All 26 pairs | Excl. ACH, EDU, BYDDY (23) |
+|---|---|---|
+| Median Sharpe, in-sample → walk-forward | 0.21 → 0.02 | 0.21 → −0.00 |
+| Walk-forward Sharpe > 0 | 14 / 26 | 11 / 23 |
+| Walk-forward Sharpe > 0.3 | 4 / 26 | 3 / 23 |
+| Median walk-forward annual return | −1.6% | −2.4% |
+| Median walk-forward max drawdown | −23% | −23% |
+| Pairs worse out of sample / median Sharpe decay | 23 / 26, 0.17 | 20 / 23, 0.18 |
+| Rank correlation, in-sample vs walk-forward | 0.69 | 0.62 |
+
+Reproduce with `python scripts/summarize_universe.py`.
+
 The synthetic-data figures below illustrate the method on a pair with a known, mean-reverting premium.
 
 <p align="center">
@@ -140,7 +154,7 @@ src/adr_hk_arb/
   metrics.py    Sharpe, drawdown, win rates, trade statistics
   optimize.py   grid search, in-sample baseline, walk-forward
   plots.py      heatmaps, premium bands, equity curves
-scripts/        run_pair.py, run_universe.py, plot_universe.py
+scripts/        run_pair.py, run_universe.py, plot_universe.py, summarize_universe.py
 results/        universe_summary.csv (latest universe run)
 config/         pairs.csv (HK ticker, ADR ticker, ADRs per HK share)
 tests/          correctness tests (alignment, walk-forward cutoff, costs, hedge P&L, drawdown)
